@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import subprocess
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_ollama import OllamaEmbeddings
@@ -16,11 +17,22 @@ embeddings = OllamaEmbeddings(model='nomic-embed-text')
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 
-docs_path = os.getenv("DOCS_PATH")
+repo_url = os.getenv("GITHUB_REPO_URL")
+docs_path = os.getenv("DOCS_PATH", "./repos_doc")
+
+# Clone or pull the repo
+if os.path.exists(docs_path):
+    print("Pulling the latest changes:")
+    subprocess.run(["git", "-C", docs_path, "pull"], check=True)
+else:
+    print("Cloning the repo:")
+    subprocess.run(["git", "clone", repo_url, docs_path], check=True)
+
 
 def compute_checksums(doc_path):
     checksums = {}
     for root, dirs, files in os.walk(doc_path):
+        dirs[:] = [d for d in dirs if not d.startswith('.')]
         for f in files:
             if f.endswith(".md"):
                 filepath = os.path.join(root, f)
@@ -46,7 +58,7 @@ changed = [f for f in current_checksums if current_checksums[f] != saved_checksu
 deleted = [f for f in saved_checksums if f not in current_checksums]
 
 # Initialize vectorstore here so it's available for the test search regardless of whether docs changed
-client = QdrantClient(url="http://localhost:6333")
+client = QdrantClient(url=os.getenv("QDRANT_URL", "http://localhost:6333"))
 vectorstore = QdrantVectorStore(
     client=client,
     collection_name="bookshelf_docs",

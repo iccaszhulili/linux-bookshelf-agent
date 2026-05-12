@@ -1,31 +1,31 @@
 import gradio as gr
 from langchain_core.messages import HumanMessage
-from mem0_bookshelf import compiled_graph
+from agentic_rag import graph
+from mem0_config import search_memory
 
 user_id = "user1"
-last_memory = ""
 
 def respond(user_input, history):
-    global last_memory
     config = {"configurable":{"thread_id": user_id}}
     
     if user_input.strip() == "/memory":
-        if last_memory:
-            return f"<span style='color: gray'>{last_memory}</span>"    
-        return "No memory context available."
+        try:
+            memory = search_memory("conversation history", user_id)
+            if memory and memory != "No relevant memories found.":
+                return f"<span style='color: gray'>{memory}</span>" 
+        except Exception as e:
+            return f"Memory search failed: {e}"   
+        return "No relevant memories found."
 
     state = {
         "messages": [HumanMessage(content=user_input)],
-        "mem0_user_id": user_id
     }
 
     response_text = ""
-    for event in compiled_graph.stream(state, config):
+    for event in graph.stream(state, config):
         for value in event.values():
             if value.get("messages"):
                 response_text = value["messages"][-1].content
-            if value.get("memory_context"):
-                last_memory = value["memory_context"]
 
     if not response_text:
         return "No response generated."
